@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Not1a</title>
+  <desc id="desc">Not1a Agnes multimodal tool icon</desc>
+  <defs>
+    <linearGradient id="bg" x1="16" y1="14" x2="112" y2="116" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0b7f86"/>
+      <stop offset="1" stop-color="#c54835"/>
+    </linearGradient>
+    <linearGradient id="spark" x1="34" y1="30" x2="94" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d8f3dc"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="#eef2f4"/>
+  <rect x="12" y="12" width="104" height="104" rx="26" fill="url(#bg)"/>
+  <path d="M30 88V36h12l26 31V36h12v52H68L42 57v31H30Z" fill="#fff"/>
+  <text x="85" y="88" fill="#fff" font-family="Segoe UI, Arial, sans-serif" font-size="30" font-weight="800">1</text>
+  <path d="M76 37c10 2 17 10 19 20 2-10 9-18 19-20-10-2-17-10-19-20-2 10-9 18-19 20Z" fill="url(#spark)" opacity=".96"/>
+  <circle cx="91" cy="83" r="11" fill="#fff" opacity=".92"/>
+</svg>

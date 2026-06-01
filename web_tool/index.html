@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Not1a · Agnes 多模态工具</title>
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="splash" class="splash" aria-hidden="true">
+      <div class="splash-card">
+        <img src="./favicon.svg" alt="" />
+        <strong>Not1a · Agnes 多模态工具</strong>
+        <span>正在准备工作台</span>
+        <div class="splash-loader">
+          <div class="splash-loader-bar"></div>
+        </div>
+      </div>
+    </div>
+    <main class="app">
+      <header class="hero">
+        <div class="brand-heading">
+          <img class="brand-icon" src="./favicon.svg" alt="" aria-hidden="true" />
+          <p class="eyebrow">兼容 OpenAI 规范 / 多模态模型测试</p>
+          <h1>Not1a · Agnes 多模态工具</h1>
+          <p class="subhead">一个通用网页工具：填入接口地址和 Key，即可生图、生视频、聊天测试，并查看完整请求和响应。</p>
+        </div>
+        <div class="status-stack">
+          <div class="status-pill" id="status">就绪</div>
+          <div class="timer" id="timer">00:00</div>
+        </div>
+      </header>
+
+      <section class="connection">
+        <label>
+          <span>供应商预设</span>
+          <select id="provider">
+            <option value="agnes" selected>Agnes / APIHub</option>
+            <option value="xai">Grok / xAI</option>
+            <option value="openai">GPT Image / OpenAI</option>
+            <option value="custom">新建 API 接口</option>
+          </select>
+        </label>
+        <label>
+          <span>接口地址</span>
+          <input id="baseUrl" value="https://apihub.agnes-ai.com/v1" spellcheck="false" />
+        </label>
+        <label>
+          <span>API Key</span>
+          <input id="apiKey" type="password" placeholder="sk-..." spellcheck="false" autocomplete="off" />
+        </label>
+        <div class="connection-actions">
+          <button id="saveCustomProvider" class="ghost" type="button">保存接口</button>
+          <button id="clearCustomProvider" class="ghost danger" type="button">清空接口</button>
+          <button id="fetchModels" class="ghost strong" type="button">获取模型列表</button>
+        </div>
+        <div id="customProviderPanel" class="custom-provider-panel">
+          <label>
+            <span>接口名称</span>
+            <input id="customProviderName" placeholder="例如：我的中转站" spellcheck="false" />
+          </label>
+          <p>接口和 Key 只保存在本机浏览器；保存后可在预设中直接选择。</p>
+        </div>
+      </section>
+
+      <section class="layout">
+        <aside class="sidebar">
+          <nav class="tabs" aria-label="功能">
+            <button class="tab active" data-mode="image">生图</button>
+            <button class="tab" data-mode="video">生视频</button>
+            <button class="tab" data-mode="chat">聊天测试</button>
+            <button class="tab" data-mode="query">查任务</button>
+          </nav>
+
+          <section class="model-board" id="modelBoard"></section>
+        </aside>
+
+        <section class="workbench">
+          <div id="modeHint" class="provider-hint mode-hint"></div>
+
+          <form id="imageForm" class="mode-form active">
+            <div class="form-head">
+              <div>
+                <h2>图片生成</h2>
+                <p>根据当前供应商和模型自动选择生图或图生图端点。</p>
+              </div>
+              <button class="primary" type="submit">生成图片</button>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                <span>模型</span>
+                <input id="imageModel" list="imageModels" value="agnes-image-2.1-flash" />
+              </label>
+              <label>
+                <span>模式</span>
+                <select id="imageMode">
+                  <option value="generate" selected>文生图</option>
+                  <option value="edit">图生图 / 编辑</option>
+                </select>
+              </label>
+              <label>
+                <span>尺寸</span>
+                <input id="imageSize" value="1024x768" />
+              </label>
+              <label>
+                <span>数量</span>
+                <input id="imageN" type="number" value="1" min="1" max="4" />
+              </label>
+              <label>
+                <span>质量</span>
+                <select id="imageQuality">
+                  <option value="">默认</option>
+                  <option value="auto">自动 (auto)</option>
+                  <option value="low">低画质 (low)</option>
+                  <option value="medium">中等画质 (medium)</option>
+                  <option value="high">高画质 (high)</option>
+                </select>
+              </label>
+              <label>
+                <span>种子</span>
+                <input id="imageSeed" type="number" placeholder="可空" />
+              </label>
+            </div>
+
+            <section class="quick-panel" aria-label="图片快捷选项">
+              <div class="quick-row">
+                <span>比例</span>
+                <button type="button" class="chip" data-size="1024x1024">1:1</button>
+                <button type="button" class="chip" data-size="1024x768">4:3</button>
+                <button type="button" class="chip" data-size="768x1024">3:4</button>
+                <button type="button" class="chip" data-size="1280x720">16:9</button>
+              </div>
+              <div class="quick-row">
+                <span>画质</span>
+                <button type="button" class="chip" data-quality="">默认</button>
+                <button type="button" class="chip" data-quality="auto">自动</button>
+                <button type="button" class="chip" data-quality="high">高画质</button>
+              </div>
+              <div class="quick-row prompt-row">
+                <span>灵感</span>
+                <button type="button" class="chip prompt-chip" data-prompt="未来城市夜景，雨后街道，电影光影，细节丰富">未来城市</button>
+                <button type="button" class="chip prompt-chip" data-prompt="产品摄影，一件精致透明材质的科技设备，柔和棚拍灯光">产品摄影</button>
+                <button type="button" class="chip prompt-chip" data-prompt="东方幻想场景，山间云雾，细腻笔触，史诗构图">东方幻想</button>
+              </div>
+            </section>
+
+            <label>
+              <span>提示词</span>
+              <textarea id="imagePrompt" rows="5">一只玻璃质感的机械水母，漂浮在深海实验室里</textarea>
+            </label>
+
+            <label>
+              <span>参考图 URL</span>
+              <textarea id="imageRefs" rows="3" placeholder="切换到图生图 / 编辑后，每行填写一个图片 URL。"></textarea>
+            </label>
+            <section class="upload-panel" aria-label="图片参考图上传">
+              <div class="upload-toolbar">
+                <label class="upload-drop" for="imageRefFiles">
+                  <span>上传本机参考图</span>
+                  <small>支持电脑选择文件，也支持手机相册选择。</small>
+                </label>
+                <input id="imageRefFiles" class="file-input" type="file" accept="image/*" multiple />
+                <button id="clearImageRefs" class="ghost danger" type="button">清空已上传</button>
+              </div>
+              <div id="imageRefPreview" class="upload-preview"></div>
+            </section>
+          </form>
+
+          <form id="videoForm" class="mode-form">
+            <div class="form-head">
+              <div>
+                <h2>视频生成</h2>
+                <p>创建异步视频任务，提交后会自动等待完整结果。</p>
+              </div>
+              <button class="primary" type="submit">提交任务</button>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                <span>模型</span>
+                <input id="videoModel" list="videoModels" value="agnes-video-v2.0" />
+              </label>
+              <label>
+                <span>尺寸</span>
+                <select id="videoSize">
+                  <option value="768x512" selected>768 x 512</option>
+                  <option value="1152x768">1152 x 768</option>
+                  <option value="768x1152">768 x 1152</option>
+                  <option value="1024x1024">1024 x 1024</option>
+                  <option value="1280x720">1280 x 720</option>
+                </select>
+              </label>
+              <label>
+                <span>帧数</span>
+                <input id="videoFrames" type="number" value="81" />
+              </label>
+              <label>
+                <span>帧率</span>
+                <input id="videoRate" type="number" value="24" step="0.1" />
+              </label>
+            </div>
+
+            <label>
+              <span>提示词</span>
+              <textarea id="videoPrompt" rows="5">红色跑车在雨夜霓虹街道疾驰，电影镜头</textarea>
+            </label>
+
+            <label>
+              <span>参考图 URL</span>
+              <textarea id="videoRefs" rows="3" placeholder="每行一个图片 URL。一个 URL 为图生视频，多个 URL 为关键帧。"></textarea>
+            </label>
+            <section class="upload-panel" aria-label="视频参考图上传">
+              <div class="upload-toolbar">
+                <label class="upload-drop" for="videoRefFiles">
+                  <span>上传本机参考图</span>
+                  <small>一张图用于图生视频，多张图可作为关键帧。</small>
+                </label>
+                <input id="videoRefFiles" class="file-input" type="file" accept="image/*" multiple />
+                <button id="clearVideoRefs" class="ghost danger" type="button">清空已上传</button>
+              </div>
+              <div id="videoRefPreview" class="upload-preview"></div>
+            </section>
+
+            <label>
+              <span>负面提示词</span>
+              <input id="negativePrompt" placeholder="可空" />
+            </label>
+          </form>
+
+          <form id="chatForm" class="mode-form">
+            <div class="form-head">
+              <div>
+                <h2>聊天 / 多模态测试</h2>
+                <p>适合聊天模型和可对话的多模态模型，使用聊天补全端点。</p>
+              </div>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                <span>模型</span>
+                <input id="chatModel" list="chatModels" value="agnes-2.0-flash" />
+              </label>
+              <label>
+                <span>温度</span>
+                <input id="temperature" type="number" value="0.7" min="0" max="2" step="0.1" />
+              </label>
+            </div>
+
+            <label>
+              <span>图片 URL</span>
+              <textarea id="chatImages" rows="3" placeholder="每行一个图片 URL，可空。"></textarea>
+            </label>
+            <section class="upload-panel" aria-label="聊天图片上传">
+              <div class="upload-toolbar">
+                <label class="upload-drop" for="chatImageFiles">
+                  <span>上传本机图片</span>
+                  <small>会作为聊天消息里的图片一起发送。</small>
+                </label>
+                <input id="chatImageFiles" class="file-input" type="file" accept="image/*" multiple />
+                <button id="clearChatImages" class="ghost danger" type="button">清空已上传</button>
+              </div>
+              <div id="chatImagePreview" class="upload-preview"></div>
+            </section>
+
+            <section class="chat-shell">
+              <div id="chatTranscript" class="chat-transcript" aria-live="polite"></div>
+              <div class="chat-composer">
+                <textarea id="chatPrompt" rows="2" placeholder="输入消息，按发送开始测试">你好，用一句话介绍你的能力。</textarea>
+                <button class="primary" type="submit">发送</button>
+              </div>
+              <button id="toggleChatLog" class="ghost chat-log-toggle" type="button">查看聊天日志</button>
+            </section>
+          </form>
+
+          <form id="queryForm" class="mode-form">
+            <div class="form-head">
+              <div>
+                <h2>任务查询</h2>
+                <p>查询 `/videos/{task_id}` 的视频任务状态。</p>
+              </div>
+              <div class="actions">
+                <button class="ghost strong" id="pollTask" type="button">自动等待</button>
+                <button class="primary" type="submit">查询</button>
+              </div>
+            </div>
+
+            <label>
+              <span>任务 ID</span>
+              <input id="taskId" placeholder="task_xxx" />
+            </label>
+          </form>
+
+          <datalist id="imageModels"></datalist>
+          <datalist id="videoModels"></datalist>
+          <datalist id="chatModels"></datalist>
+
+          <details class="payload-panel">
+            <summary class="payload-summary">
+              <div>
+                <h2>请求体</h2>
+                <p>可直接编辑 JSON，再点击发送当前 JSON。</p>
+              </div>
+              <span class="fold-mark">展开</span>
+            </summary>
+            <div class="payload-body">
+              <div class="actions">
+                <button id="refreshPayload" class="ghost" type="button">刷新</button>
+                <button id="sendPayload" class="ghost strong" type="button">发送当前 JSON</button>
+              </div>
+              <textarea id="payloadEditor" class="json-editor" spellcheck="false"></textarea>
+            </div>
+          </details>
+        </section>
+
+        <section class="results">
+          <div class="result-head">
+            <div>
+              <h2>结果</h2>
+              <p id="endpointLabel">等待请求</p>
+            </div>
+            <div class="actions">
+              <button id="stopPolling" class="ghost danger" type="button" disabled>停止轮询</button>
+              <button id="copyJson" class="ghost" type="button" disabled>复制响应</button>
+              <button id="toggleResultLog" class="ghost" type="button">查看日志</button>
+            </div>
+          </div>
+          <div id="taskProgress" class="task-progress hidden">
+            <div class="progress-top">
+              <strong id="taskStatus">等待任务</strong>
+              <span id="taskPercent">0%</span>
+            </div>
+            <div class="progress-bar"><span id="taskBar"></span></div>
+            <p id="taskHint">视频任务是异步生成，完成前不会返回视频文件。</p>
+          </div>
+          <div id="activity" class="activity hidden">
+            <div class="pulse-ring"></div>
+            <div>
+              <strong id="activityTitle">正在请求</strong>
+              <p id="activityText">已发送到平台，正在等待返回。</p>
+            </div>
+          </div>
+          <div id="gallery" class="gallery"></div>
+          <pre id="rawResult">{}</pre>
+          <section class="completed-panel">
+            <div class="result-head">
+              <div>
+                <h2>已完成项目</h2>
+                <p>自动收集已生成的图片和视频链接。</p>
+              </div>
+              <button id="clearCompleted" class="ghost danger" type="button">清空</button>
+            </div>
+            <div id="completedList" class="completed-list"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+    <div id="toast" class="toast hidden"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
+
