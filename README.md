@@ -65,21 +65,6 @@ http://127.0.0.1:8765
 - 本地服务默认只监听 `127.0.0.1:8765`，用于静态页面访问和请求转发。
 - 如果你要截图或分享页面，请先确认没有暴露自己的 Key 或敏感接口地址。
 
-## 打包
-
-运行：
-
-```powershell
-python build.py
-```
-
-会在桌面生成：
-
-- `Not1a_Agnes_多模态工具_单文件版.html`
-- `Not1a_Agnes_多模态工具_GitHub本地服务版.zip`
-
-GitHub 推荐提交源码；Release 附件可以放这个 zip。
-
 ## 许可证
 
 MIT License
