@@ -247,6 +247,13 @@ function bindForms() {
     scheduleCustomModelFetch();
   });
   $("refreshPayload").addEventListener("click", updatePayloadEditor);
+  $("copyCurl").addEventListener("click", async () => {
+    try {
+      await copyText(buildMaskedCurlCommand(), "已复制脱敏 cURL");
+    } catch (error) {
+      showError(`复制 cURL 失败：${error.message || String(error)}`);
+    }
+  });
   $("sendPayload").addEventListener("click", async () => {
     try {
       const payload = JSON.parse($("payloadEditor").value || "{}");
@@ -257,8 +264,15 @@ function bindForms() {
   });
   $("copyJson").addEventListener("click", async () => {
     if ($("copyJson").disabled) return;
-    await navigator.clipboard.writeText(JSON.stringify(lastJson, null, 2));
-    setStatus("已复制");
+    await copyText(JSON.stringify(lastJson, null, 2), "已复制响应");
+  });
+  $("downloadJson").addEventListener("click", () => {
+    if ($("downloadJson").disabled) return;
+    downloadActiveJson();
+  });
+  $("copyIssueReport").addEventListener("click", async () => {
+    if ($("copyIssueReport").disabled) return;
+    await copyText(buildIssueReport(), "已复制问题报告");
   });
   $("stopPolling").addEventListener("click", () => {
     if ($("stopPolling").disabled) return;
@@ -926,11 +940,6 @@ function modeSummary() {
   return `任务查询 · ${id || "未输入任务 ID"} · ${id ? providerConfig().queryEndpoint(id) : "/videos/{task_id}"}`;
 }
 
-function providerLabel(id) {
-  const option = [...$("provider").options].find((item) => item.value === id);
-  return option?.textContent || "当前接口";
-}
-
 function imageEndpointForCurrentModel() {
   const provider = providerConfig();
   const model = MODELS.find((item) => item.id.toLowerCase() === ($("imageModel")?.value.trim().toLowerCase() || ""));
@@ -1174,6 +1183,173 @@ function currentRequestMeta() {
   return { method: "GET", endpoint: id ? provider.queryEndpoint(id) : "/videos/{task_id}" };
 }
 
+function buildMaskedCurlCommand(options = {}) {
+  const payload = parsePayloadEditorForCurl();
+  const request = {
+    ...currentRequestMeta(),
+    payload: options.sanitizePayload ? sanitizeForReport(payload) : payload,
+  };
+  const baseUrl = options.maskBaseUrl && isCustomProvider($("provider").value)
+    ? "https://your-api.example/v1"
+    : $("baseUrl").value.trim().replace(/\/+$/, "") || providerConfig().baseUrl || "https://example.com/v1";
+  const endpoint = String(request.endpoint || "").replace(/^\/+/, "");
+  const url = `${baseUrl}/${endpoint}`;
+  const lines = [
+    `curl ${shellQuote(url)} \\`,
+    `  -X ${request.method || "POST"} \\`,
+    "  -H 'Authorization: Bearer YOUR_API_KEY'",
+  ];
+  if ((request.method || "POST").toUpperCase() !== "GET") {
+    lines[lines.length - 1] += " \\";
+    lines.push("  -H 'Content-Type: application/json' \\");
+    lines.push(`  -d ${shellQuote(JSON.stringify(request.payload || {}, null, 2))}`);
+  }
+  return lines.join("\n");
+}
+
+function parsePayloadEditorForCurl() {
+  try {
+    return JSON.parse($("payloadEditor").value || "{}");
+  } catch {
+    return activeRequest().payload || {};
+  }
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\"'\"'")}'`;
+}
+
+async function copyText(text, successMessage = "已复制") {
+  const value = String(text || "");
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch (error) {
+    const textarea = document.createElement("textarea");
+    textarea.value = value;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const copied = document.execCommand("copy");
+    textarea.remove();
+    if (!copied) throw error;
+  }
+  toast(successMessage);
+  setStatus("已复制");
+}
+
+function downloadActiveJson() {
+  const log = activeLog();
+  const exportData = {
+    exported_at: new Date().toISOString(),
+    mode: modeLabel(state.mode),
+    provider: providerLabel($("provider").value),
+    model: currentModelForMode() || "",
+    request: log.request || lastRequest || currentRequestMeta(),
+    response: log.json || {},
+  };
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `not1a-${state.mode}-${formatFileTimestamp()}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1200);
+  toast("已开始下载 JSON");
+}
+
+function buildIssueReport() {
+  const log = activeLog();
+  const request = log.request || lastRequest || currentRequestMeta();
+  const response = sanitizeForReport(log.json || {});
+  const lines = [
+    "# 问题反馈",
+    "",
+    `时间：${new Date().toLocaleString()}`,
+    `栏目：${modeLabel(state.mode)}`,
+    `供应商：${providerLabel($("provider").value)}`,
+    `模型：${currentModelForMode() || "未填写"}`,
+    `接口：${request.method || "POST"} ${request.endpoint || ""}`,
+    "",
+    "## 现象",
+    "请在这里补充你看到的问题、期望结果和实际结果。",
+    "",
+    "## 脱敏 cURL",
+    "```bash",
+    buildMaskedCurlCommand({ sanitizePayload: true, maskBaseUrl: true }),
+    "```",
+    "",
+    "## 响应摘要",
+    "```json",
+    JSON.stringify(response, null, 2),
+    "```",
+  ];
+  return lines.join("\n");
+}
+
+function sanitizeForReport(value, depth = 0, keyName = "") {
+  if (depth > 6) return "[内容过深，已省略]";
+  if (typeof value === "string") return sanitizeStringForReport(value, keyName);
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.slice(0, 12).map((item) => sanitizeForReport(item, depth + 1, keyName));
+  return Object.fromEntries(
+    Object.entries(value).map(([key, item]) => {
+      if (isSensitiveKey(key)) return [key, "[已隐藏]"];
+      return [key, sanitizeForReport(item, depth + 1, key)];
+    }),
+  );
+}
+
+function sanitizeStringForReport(value, keyName = "") {
+  if (isSensitiveKey(keyName)) return "[已隐藏]";
+  if (/^data:image\//i.test(value)) return `[本机图片数据已省略，长度 ${value.length}]`;
+  if (/^https?:\/\//i.test(value)) return maskUrlForReport(value);
+  if (value.length > 1200) return `${value.slice(0, 900)}\n...[长文本已截断，原长度 ${value.length}]`;
+  return value;
+}
+
+function isSensitiveKey(keyName = "") {
+  return /api[-_ ]?key|authorization|bearer|secret|token|password|passwd/i.test(keyName);
+}
+
+function maskUrlForReport(value) {
+  try {
+    const parsed = new URL(value);
+    parsed.username = "";
+    parsed.password = "";
+    parsed.search = parsed.search ? "?..." : "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return value;
+  }
+}
+
+function modeLabel(mode) {
+  return { image: "生图", video: "生视频", chat: "聊天测试", query: "查任务" }[mode] || mode;
+}
+
+function providerLabel(id) {
+  const option = [...$("provider").options].find((item) => item.value === id);
+  return option?.textContent || id || "未选择";
+}
+
+function currentModelForMode() {
+  if (state.mode === "image") return $("imageModel")?.value.trim();
+  if (state.mode === "video") return $("videoModel")?.value.trim();
+  if (state.mode === "chat") return $("chatModel")?.value.trim();
+  return "";
+}
+
+function formatFileTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, "-");
+}
+
 function isVideoCreateEndpoint(endpoint) {
   return endpoint === providerConfig().videoEndpoint || endpoint === "/videos" || endpoint === "/videos/generations";
 }
@@ -1229,8 +1405,11 @@ async function sendBuiltRequest(request) {
     showError("请先填写接口地址和 API Key");
     return;
   }
-  showActivityForRequest(request);
-  const data = await send(request.method, request.endpoint, request.payload);
+  const data = await send(request.method, request.endpoint, request.payload, { activityRequest: request });
+  if (request.endpoint.startsWith("/videos/") && data && !collectUrls(data).length) {
+    showProgress(data);
+    renderSkeleton("video");
+  }
   if (isVideoCreateEndpoint(request.endpoint) && data) {
     const taskId = data.task_id || data.request_id || data.id;
     if (taskId) {
@@ -1258,6 +1437,7 @@ async function sendRequest(method, endpoint, payload, options = {}) {
   setBusy(true);
   startTimer();
   if (!options.keepResult) clearResult();
+  if (options.activityRequest) showActivityForRequest(options.activityRequest);
   
   const useProxy = window.location.protocol !== "file:" && window.location.hostname !== "";
   
@@ -1469,10 +1649,6 @@ function isVectorModel(id) {
   return /(embed|embedding|embeddings|rerank|reranker|re-rank|vector|vectors|similarity|bge|acge|e5-|jina-embeddings|text-embedding|sentence-transformer|sparse|dense|retrieval)/i.test(String(id || ""));
 }
 
-function endpointForKind(kind) {
-  return endpointForModelKind(kind, "");
-}
-
 function endpointForModelKind(kind, id = "") {
   if (kind === "image") return isImageEditModel(id) ? providerConfig().imageEditEndpoint : providerConfig().imageEndpoint;
   if (kind === "video") return providerConfig().videoEndpoint;
@@ -1510,6 +1686,7 @@ async function pollVideoTask(taskId) {
   updateResultActions();
   showProgress({ status: "queued", progress: 0, taskId });
   showActivity("视频生成中", "任务已提交至平台，系统正在每 5 秒自动查询一次进度。", "video");
+  renderSkeleton("video");
   setStatus("生成中");
 
   const tick = async () => {
@@ -1527,6 +1704,7 @@ async function pollVideoTask(taskId) {
       hideActivity();
       return;
     }
+    setStatus(status === "queued" ? "排队中" : "生成中");
     pollTimer = window.setTimeout(tick, 5000);
     updateResultActions();
   };
@@ -1636,6 +1814,15 @@ function renderResult(data) {
   updateResultActions();
   const urls = collectUrls(data);
   rememberCompletedUrls(urls, data);
+  if (!urls.length) {
+    $("gallery").innerHTML = state.mode === "chat"
+      ? ""
+      : `<article class="empty-state result-empty">
+        <strong>请求已返回</strong>
+        <p>暂时没有识别到图片或视频链接。可展开日志查看平台返回的完整内容。</p>
+      </article>`;
+    return;
+  }
   $("gallery").innerHTML = urls
     .map((url) => {
       const isVideo = /\.(mp4|webm|mov)(\?|$)/i.test(url);
@@ -1711,8 +1898,11 @@ function renderCompletedItems() {
     .join("");
   document.querySelectorAll(".copy-completed").forEach((button) => {
     button.addEventListener("click", async () => {
-      await navigator.clipboard.writeText(button.dataset.url);
-      toast("链接已复制");
+      try {
+        await copyText(button.dataset.url, "链接已复制");
+      } catch (error) {
+        showError(`复制链接失败：${error.message || String(error)}`);
+      }
     });
   });
 }
@@ -1864,10 +2054,18 @@ function setBusy(isBusy) {
 
 function updateResultActions() {
   $("copyJson").disabled = !canCopyLastResponse();
+  const hasLog = hasActiveLogData();
+  $("downloadJson").disabled = !hasLog;
+  $("copyIssueReport").disabled = !hasLog;
   $("stopPolling").disabled = !pollTimer && !pollingTaskId;
   const logOpen = activeLog().open;
   $("toggleResultLog").textContent = logOpen ? "隐藏日志" : "查看日志";
   if ($("toggleChatLog")) $("toggleChatLog").textContent = logOpen && state.mode === "chat" ? "隐藏聊天日志" : "查看聊天日志";
+}
+
+function hasActiveLogData() {
+  const data = activeLog().json || {};
+  return Boolean(data && typeof data === "object" && Object.keys(data).length);
 }
 
 function canCopyLastResponse() {

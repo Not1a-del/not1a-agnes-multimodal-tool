@@ -1190,6 +1190,10 @@ button.btn-loading::after {
   line-height: 1.45;
 }
 
+.result-empty {
+  grid-column: 1 / -1;
+}
+
 pre {
   display: none;
   min-height: 260px;

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import base64
+import argparse
 import zipfile
 from pathlib import Path
 
@@ -10,37 +10,8 @@ ROOT = Path(__file__).resolve().parent
 WEB_TOOL = ROOT / "web_tool"
 DESKTOP = Path.home() / "Desktop"
 PROJECT_NAME = "Not1a_Agnes_多模态工具"
-INLINE_HTML_NAME = f"{PROJECT_NAME}_单文件版.html"
 RELEASE_ZIP_NAME = f"{PROJECT_NAME}_GitHub本地服务版.zip"
 PACKAGE_ROOT = "Not1a-Agnes-Multimodal-Tool"
-
-
-def read_text(path: Path) -> str:
-    return path.read_text(encoding="utf-8")
-
-
-def build_inline_html() -> Path:
-    html = read_text(WEB_TOOL / "index.html")
-    css = read_text(WEB_TOOL / "styles.css")
-    js = read_text(WEB_TOOL / "app.js")
-    favicon_bytes = (WEB_TOOL / "favicon.svg").read_bytes()
-    favicon_data_uri = f"data:image/svg+xml;base64,{base64.b64encode(favicon_bytes).decode('utf-8')}"
-
-    html = html.replace(
-        '<link rel="icon" type="image/svg+xml" href="./favicon.svg" />',
-        f'<link rel="icon" type="image/svg+xml" href="{favicon_data_uri}" />',
-    )
-    html = html.replace('src="./favicon.svg"', f'src="{favicon_data_uri}"')
-    html = html.replace(
-        '<link rel="stylesheet" href="./styles.css" />',
-        f"<style>\n{css}\n</style>",
-    )
-    html = html.replace('<script src="./app.js"></script>', f"<script>\n{js}\n</script>")
-
-    DESKTOP.mkdir(parents=True, exist_ok=True)
-    out_path = DESKTOP / INLINE_HTML_NAME
-    out_path.write_text(html, encoding="utf-8")
-    return out_path
 
 
 def add_file(zipf: zipfile.ZipFile, source: Path, target: str) -> None:
@@ -49,12 +20,24 @@ def add_file(zipf: zipfile.ZipFile, source: Path, target: str) -> None:
         print(f"Added {target}")
 
 
+def add_tree(zipf: zipfile.ZipFile, source_dir: Path, target_dir: str) -> None:
+    if not source_dir.exists():
+        return
+    for source in sorted(source_dir.rglob("*")):
+        if source.is_file():
+            relative = source.relative_to(source_dir).as_posix()
+            add_file(zipf, source, f"{target_dir}/{relative}")
+
+
 def build_release_zip() -> Path:
     DESKTOP.mkdir(parents=True, exist_ok=True)
     zip_path = DESKTOP / RELEASE_ZIP_NAME
 
     root_files = [
         "README.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "SECURITY.md",
         "LICENSE",
         ".gitignore",
         "build.py",
@@ -75,16 +58,17 @@ def build_release_zip() -> Path:
         for name in web_files:
             add_file(zipf, WEB_TOOL / name, f"{PACKAGE_ROOT}/web_tool/{name}")
         add_file(zipf, WEB_TOOL / "outputs" / ".gitkeep", f"{PACKAGE_ROOT}/web_tool/outputs/.gitkeep")
+        add_tree(zipf, ROOT / ".github", f"{PACKAGE_ROOT}/.github")
 
     return zip_path
 
 
 def build() -> None:
-    html_path = build_inline_html()
     zip_path = build_release_zip()
-    print(f"Generated single HTML: {html_path}")
     print(f"Generated GitHub local-service zip: {zip_path}")
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Build the Not1a Agnes local-service release package.")
+    parser.parse_args()
     build()
